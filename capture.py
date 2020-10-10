@@ -6,10 +6,7 @@ import json
 import os
 
 from mitmproxy import ctx
-
-FILE_WORKERS = 1
-HTTP_WORKERS = 10
-# for use of transfer strings to bytes
+# for use of transfer strings to bytes, in function string2bytes_format()
 DICTION = {'a': 7, 'b': 8, 'f': 12, 'n': 10, 'r': 13,
            't': 9, 'v': 11, "'": 39, '"': 34, '?': 63, '0': 0}
 # for use of different ip id
@@ -30,7 +27,7 @@ class JSONDumper:
         self.auth = None
         self.queue = Queue()
 
-    def done(self):  # 结束时候调用
+    def done(self):
         self.queue.join()
         if self.outfile:
             self.outfile.close()
@@ -71,9 +68,11 @@ class JSONDumper:
             ('request', 'content'),
             ('response', 'content'),
         ),
-    }  # 列表，每一个元素是一个dict
+    }
 
-    def _init_transformations(self):  # 自己设置用来改变transformations这个数组
+    """For fields data processing"""
+
+    def _init_transformations(self):
         self.transformations = [
             {
                 'fields': self.fields['headers'],
@@ -88,7 +87,7 @@ class JSONDumper:
                 'func': lambda addr: {
                     'host': addr[0].replace('::ffff:', ''),
                     'port': addr[1],
-                },  # 把address分成两份
+                },
             },
             {
                 'fields': self.fields['ws_messages'],
@@ -105,30 +104,32 @@ class JSONDumper:
             self.transformations.append({
                 'fields': self.fields['content'],
                 'func': base64.b64encode,
-            })  # 修正正文编码
+            })
 
+    """
+        
+    """
     @staticmethod
-    def transform_field(obj: dict, path: list, func):
+    def transform_field(obj, path, func):
         # 传入的obj是frame，也就是每一个response抓到的全部内容，提醒一下，frame是dict类型；传入的path是诸如 ('error', 'timestamp')这样的列表
         """
-        Apply a transformation function `func` to a value
-        under the specified `path` in the `obj` DICTIONary.
+        :param obj: frame
+        :param path: tuple, e.g. ('error', 'timestamp')
+        :param func: function to operate
+        Apply a transformation function `func` to a value under the specified `path` in the `obj` DICTIONary.
         """
-        for key in path[:-1]:  # 这里取出来的path[]是一个列表，但只有一个元素，就是第一个元素,经过调试检查，这个key就是如'error'这样的字符串
-            if not (key in obj and obj[key]):  # 表明存在这个dict对应关系
+        for key in path[:-1]:  # here to access the first element of path[], such as 'error'
+            if not (key in obj and obj[key]):
                 return
-            obj = obj[key]  # 这个就是取dict的对应结果，使得obj进入内层嵌套，也就是进入fields的第一层
+            obj = obj[key]  # to step into the first level of fields
         if path[-1] in obj and obj[path[-1]]:
-            # path[-1]是最后一个数，如'source_address'，当存在时，就会调用函数，把这个值换成函数后的值，事实上，是用这个方式来实现正文的变换的
+            # path[-1] (e.g. 'source_address'), if exists, call the function and do the transformations
             obj[path[-1]] = func(obj[path[-1]])
-            # 举一个例子，path[-1]中包括'address'这个key，当遍历到这里，就会查找有没有'address',如果有，调用115行的方法，把
-            # "address": ["::ffff:10.21.114.253",37664,0,0]变成了{"host": "10.21.114.253","port": 49148}
 
-    """可以直接调用@classmethod方法，不需要实例化"""
     @classmethod
     def convert_to_strings(cls, obj):
         """
-        递归将dict中所有元素转换成strings
+        :param obj: dict/list/bytes 
         Recursively convert all list/dict elements of type `bytes` into strings.
         """
         if isinstance(obj, dict):  # 如果传进的参数是DICTIONary
@@ -140,29 +141,31 @@ class JSONDumper:
             return str(obj)[2:-1]
         return obj
 
-    def worker(self):  # 这是每一步的写入框架
+    def worker(self):
+        """
+            framework to write
+        """
         while True:
             frame = self.queue.get()
             self.dump(frame)
             self.queue.task_done()
 
-    def dump(self, frame):  # 具体写入的过程,这部分比较复杂
+    def dump(self, frame):
+        """
+            :param frame: frame
+            Transform and dump (write / send) a data frame.
+        """
         global ID_POOL
-        """
-        Transform and dump (write / send) a data frame.
-        """
-        for tfm in self.transformations:  # 取出每一个对照函数，每一个tfm是一个dict
-            # 再从中取出每一个dict里fileds所对应的值，可以从上面看到，这个值是fields函数里对应的列表，而从中进行for循环，取出来的field是一个更小的列表
+        for tfm in self.transformations:
             for field in tfm['fields']:
-                # 这里就是简单的修改frame的对应了
                 self.transform_field(frame, field, tfm['func'])
-        # 值得一提的是，这个改变编码并不是用来改变content的内容的，而是去改变成json文件需要的编码格式，下面写入时候会用到
-        frame = self.convert_to_strings(frame)  # 这里的frame都是string
-
+        frame = self.convert_to_strings(frame)
+        # to get the ip address of the client
         ip_address = frame['client_conn']["address"]['host']
+        # to get the request & response
         request_frame = frame['request']
         response_frame = frame['response']
-
+        # to get content of request & response respectively
         request_content = request_frame['content']
         request_content_obj = {'content': request_content}
         response_content = response_frame['content']
@@ -172,12 +175,16 @@ class JSONDumper:
         rtc_flag = (len(request_content.strip()) != 0)
         # set flag to see whether to write response content or not
         rec_flag = (len(response_content.strip()) != 0)
-        """clear the content"""
+
+        # clear the content, since it can be very large, so we store it in another single file
         request_frame['content'] = ""
         response_frame['content'] = ""
 
+        # set the first directory and second directory
         first_subfile = 'others'
         second_subfile = 'others'
+
+        # classification according to each frame's response headers' content-type
         if response_frame['headers'].__contains__('Content-Type') or response_frame['headers'].__contains__('content-type'):
             if response_frame['headers'].__contains__('Content-Type'):
                 name = 'Content-Type'
@@ -188,18 +195,20 @@ class JSONDumper:
             second_subfile = classification[1].split(';')[0]
         self.lock.acquire()
         if not os.path.exists(ip_address):
+            # if ip appears first, set id to 1
             ID_POOL[ip_address] = 1
             os.makedirs(ip_address)
         os.chdir(ip_address)
 
-        """进入分类文件夹"""
-        if not os.path.exists(first_subfile):  # 进入一级文件夹
+        # to step into file
+        if not os.path.exists(first_subfile):
             os.makedirs(first_subfile)
         os.chdir(first_subfile)
         if len(second_subfile) != 0 and not os.path.exists(second_subfile):
             os.makedirs(second_subfile)
         if first_subfile != "others":
             os.chdir(second_subfile)
+        # assign the id for each ip address
         session_id = ID_POOL[ip_address]
         request_filename = str(session_id)+'_request.json'
 
@@ -227,13 +236,19 @@ class JSONDumper:
             rec_file = str(session_id)+'_response_content.json'
             self.outfile = open(rec_file, 'a')
             self.outfile.write('\n'+json.dumps(response_content_obj)+'\n')
+        # back to the root directory of the project
         os.chdir(HOME)
         ID_POOL[ip_address] += 1
         self.lock.release()
 
-    """transfer string to bytes, and store it in the right file"""
     @classmethod
     def string2bytes_format(cls, secondsubfile, filename, string):
+        """
+            :param secondsubfile: suffix of the file
+            :param filename: str
+            :param string: str that contains bytes information
+            transfer string to bytes, and store it in the right file
+        """
         if secondsubfile == 'others':
             return
         i = 0
@@ -256,9 +271,9 @@ class JSONDumper:
                     i += 1
 
     @staticmethod
-    def load(loader):  # 开始的时候load这些设置，会把这些东西加入到options里面，在下面的方法里面调用
+    def load(loader):
         """
-        Extra options to be specified in `~/.mitmproxy/config.yaml`.
+            Extra options to be specified in `~/.mitmproxy/config.yaml`.
         """
         loader.add_option('dump_encodecontent', bool, False,
                           'Encode content as base64.')
@@ -271,14 +286,10 @@ class JSONDumper:
 
     def configure(self, _):
         """
-        主体方法在这里，每次配置发生变化以后就会执行这个方法
-        总的思路是，每次response都会把来回写进队列里面，然后触发发生，这个方法就启动了
+            Determine the destination type and path, initialize the output
+            transformation rules.
         """
-        """
-        Determine the destination type and path, initialize the output
-        transformation rules.
-        """
-        self.encode = ctx.options.dump_encodecontent  # 设置编码格式，其实不需要
+        self.encode = ctx.options.dump_encodecontent
         self.lock = Lock()
         ctx.log.info('Writing all data frames to %s' %
                      ctx.options.dump_destination)
@@ -289,9 +300,9 @@ class JSONDumper:
 
     def response(self, flow):
         """
-        Dump request/response pairs.
+            Dump request/response pairs.
         """
         self.queue.put(flow.get_state())
 
 
-addons = [JSONDumper()]  # pylint: disable=invalid-name
+addons = [JSONDumper()]
