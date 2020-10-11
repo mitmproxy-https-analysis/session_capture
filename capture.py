@@ -4,16 +4,11 @@ from queue import Queue
 import base64
 import json
 import os
-
+"""
+    # TODO: REMEMBER TO SHUT DOWN YOUR FIREWALLS!!!!!!!!!
+    """
 from mitmproxy import ctx
-# for use of transfer strings to bytes, in function string2bytes_format()
-DICTION = {'a': 7, 'b': 8, 'f': 12, 'n': 10, 'r': 13,
-           't': 9, 'v': 11, "'": 39, '"': 34, '?': 63, '0': 0}
-# for use of different ip id
-ID_POOL = {}
-
-# set the root directory of the project
-HOME = "C:\\projects\\mitmproxy_group_I"
+import constant
 
 
 class JSONDumper:
@@ -70,9 +65,10 @@ class JSONDumper:
         ),
     }
 
-    """For fields data processing"""
-
     def _init_transformations(self):
+        """
+            For fields data processing
+        """
         self.transformations = [
             {
                 'fields': self.fields['headers'],
@@ -106,17 +102,13 @@ class JSONDumper:
                 'func': base64.b64encode,
             })
 
-    """
-        
-    """
     @staticmethod
     def transform_field(obj, path, func):
-        # 传入的obj是frame，也就是每一个response抓到的全部内容，提醒一下，frame是dict类型；传入的path是诸如 ('error', 'timestamp')这样的列表
         """
-        :param obj: frame
-        :param path: tuple, e.g. ('error', 'timestamp')
-        :param func: function to operate
-        Apply a transformation function `func` to a value under the specified `path` in the `obj` DICTIONary.
+            :param obj: frame
+            :param path: tuple, e.g. ('error', 'timestamp')
+            :param func: function to operate
+            Apply a transformation function `func` to a value under the specified `path` in the `obj` DICTIONary.
         """
         for key in path[:-1]:  # here to access the first element of path[], such as 'error'
             if not (key in obj and obj[key]):
@@ -129,8 +121,8 @@ class JSONDumper:
     @classmethod
     def convert_to_strings(cls, obj):
         """
-        :param obj: dict/list/bytes 
-        Recursively convert all list/dict elements of type `bytes` into strings.
+            :param obj: dict/list/bytes 
+            Recursively convert all list/dict elements of type `bytes` into strings.
         """
         if isinstance(obj, dict):  # 如果传进的参数是DICTIONary
             return {cls.convert_to_strings(key): cls.convert_to_strings(value)
@@ -155,7 +147,6 @@ class JSONDumper:
             :param frame: frame
             Transform and dump (write / send) a data frame.
         """
-        global ID_POOL
         for tfm in self.transformations:
             for field in tfm['fields']:
                 self.transform_field(frame, field, tfm['func'])
@@ -171,7 +162,7 @@ class JSONDumper:
         response_content = response_frame['content']
         response_content_obj = {'content': response_content}
 
-        # set flag to see wheter to write request content or not
+        # set flag to see whether to write request content or not
         rtc_flag = (len(request_content.strip()) != 0)
         # set flag to see whether to write response content or not
         rec_flag = (len(response_content.strip()) != 0)
@@ -180,9 +171,10 @@ class JSONDumper:
         request_frame['content'] = ""
         response_frame['content'] = ""
 
-        # set the first directory and second directory
+        # set the first directory and second directory and file suffix
         first_subfile = 'others'
         second_subfile = 'others'
+        file_suffix = ''
 
         # classification according to each frame's response headers' content-type
         if response_frame['headers'].__contains__('Content-Type') or response_frame['headers'].__contains__('content-type'):
@@ -190,77 +182,99 @@ class JSONDumper:
                 name = 'Content-Type'
             else:
                 name = 'content-type'
-            classification = response_frame['headers'][name].split('/')
-            first_subfile = classification[0].replace(' ', '')
-            second_subfile = classification[1].split(';')[0]
+            type_name = response_frame['headers'][name].split(';')[
+                0].replace(' ', '')
+            first_subfile = type_name.split('/')[0].replace(' ', '')
+            second_subfile = type_name.split('/')[1].replace(' ', '')
+            if constant.SUFFIX.__contains__(type_name):
+                file_suffix = constant.SUFFIX[type_name][0]
+
+            # classification = response_frame['headers'][name].split('/')
+            # first_subfile = classification[0].replace(' ', '')
+            # second_subfile = classification[1].split(';')[0]
         self.lock.acquire()
         if not os.path.exists(ip_address):
             # if ip appears first, set id to 1
-            ID_POOL[ip_address] = 1
+            constant.ID_POOL[ip_address] = 1
             os.makedirs(ip_address)
         os.chdir(ip_address)
 
         # to step into file
-        if not os.path.exists(first_subfile):
-            os.makedirs(first_subfile)
-        os.chdir(first_subfile)
-        if len(second_subfile) != 0 and not os.path.exists(second_subfile):
-            os.makedirs(second_subfile)
-        if first_subfile != "others":
+        if first_subfile == 'others':
+            if not os.path.exists(first_subfile):
+                os.makedirs(first_subfile)
+            os.chdir(first_subfile)
+        else:
+            if not os.path.exists(first_subfile):
+                os.makedirs(first_subfile)
+            os.chdir(first_subfile)
+            if not os.path.exists(second_subfile):
+                os.makedirs(second_subfile)
             os.chdir(second_subfile)
         # assign the id for each ip address
-        session_id = ID_POOL[ip_address]
+        session_id = constant.ID_POOL[ip_address]
         request_filename = str(session_id)+'_request.json'
 
-        """to write out the request information"""
+        """
+            to write out the request information
+        """
         self.outfile = open(request_filename, 'a')
         self.outfile.write("\n" + json.dumps(request_frame) + "\n")
 
-        """To write out the response information"""
+        """
+            To write out the response information
+        """
         response_filename = str(session_id)+'_response.json'
         self.outfile = open(response_filename, 'a')
         self.outfile.write("\n" + json.dumps(response_frame) + "\n")
 
-        """To write out the request content if any"""
-        if rtc_flag:
-            rtc_filename = str(session_id)+'_request_content.json'
-            self.outfile = open(rtc_filename, 'a')
-            self.outfile.write("\n"+json.dumps(request_content_obj)+'\n')
+        """
+            To write out the request content if any
+        """
+        # if rtc_flag:
+        #     rtc_filename = str(session_id)+'_request_content.json'
+        #     self.outfile = open(rtc_filename, 'a')
+        #     self.outfile.write("\n"+json.dumps(request_content_obj)+'\n')
 
-        """To write out the response content into right format file"""
+        """
+            To write out the response content into right format file
+        """
         if rec_flag:
             # TODO: transfer string to bytes
             rec_filename = str(session_id)+'_response_content'
             self.string2bytes_format(
-                second_subfile, rec_filename, response_content)
-            rec_file = str(session_id)+'_response_content.json'
-            self.outfile = open(rec_file, 'a')
-            self.outfile.write('\n'+json.dumps(response_content_obj)+'\n')
+                file_suffix, rec_filename, response_content)
+            """
+                here for debugging
+            """
+            # rec_file = str(session_id)+'_response_content.json'
+            # self.outfile = open(rec_file, 'a')
+            # self.outfile.write('\n'+json.dumps(response_content_obj)+'\n')
         # back to the root directory of the project
-        os.chdir(HOME)
-        ID_POOL[ip_address] += 1
+        os.chdir(constant.HOME)
+        constant.ID_POOL[ip_address] += 1
         self.lock.release()
 
     @classmethod
-    def string2bytes_format(cls, secondsubfile, filename, string):
+    def string2bytes_format(cls, suffix, filename, string):
         """
-            :param secondsubfile: suffix of the file
+            :param suffix: suffix of the file
             :param filename: str
             :param string: str that contains bytes information
             transfer string to bytes, and store it in the right file
         """
-        if secondsubfile == 'others':
-            return
+        if not suffix == '':
+            filename = filename+suffix
         i = 0
-        with open(filename+'.'+secondsubfile, 'wb+') as fstb:
+        with open(filename, 'wb+') as fstb:
             while i < len(string):
                 if string[i] == "\\":
                     if string[i+1] == 'x':
                         number = int(string[i+2:i+4], 16)
                         fstb.write(number.to_bytes(1, 'little'))
                         i += 4
-                    elif DICTION.__contains__(string[i+1]):
-                        number = DICTION[string[i+1]]
+                    elif constant.DICTION.__contains__(string[i+1]):
+                        number = constant.DICTION[string[i+1]]
                         fstb.write(number.to_bytes(1, 'little'))
                         i += 2
                     else:

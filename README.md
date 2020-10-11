@@ -47,6 +47,13 @@ In order to solve this difficulty, this project is based on the open source mitm
 6. open chrome/safari/edge in your mobile devices and go surfing.
 7. check the files stored in the PC.
 
+#### IMPORTANT
+
+1. Before using the script, you MUST **clear** all the ip files in the root directory.
+2. MUST put `capture.py` and `CONSTANT.py` in the same directory.
+
+
+
 ### After executing the script
 
 - The script stores every traffic in the PC, and classifies them according to its `device IPv4 address` and `content-type` of response.
