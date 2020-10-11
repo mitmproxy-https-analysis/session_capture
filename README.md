@@ -50,7 +50,7 @@ In order to solve this difficulty, this project is based on the open source mitm
 #### IMPORTANT
 
 1. Before using the script, you MUST **clear** all the ip files in the root directory.
-2. MUST put `capture.py` and `CONSTANT.py` in the same directory.
+2. MUST put `capture.py` and `constant.py` in the same directory.
 
 
 
