@@ -49,7 +49,7 @@ In order to solve this difficulty, this project is based on the open source mitm
 
 #### IMPORTANT
 
-1. Before using the script, you MUST **clear** all the ip files in the root directory.
+1. Before first using the script, you MUST **RUN** the script `clean_config.py`. (You only need to do this once.)
 2. MUST put `capture.py` and `constant.py` in the same directory.
 
 
@@ -74,3 +74,11 @@ In order to solve this difficulty, this project is based on the open source mitm
 ## Credits
 
 Most parts of the script credits to [jsondump.py](https://github.com/mitmproxy/mitmproxy/blob/master/examples/contrib/jsondump.py) in the official [mitmproxy repository](https://github.com/mitmproxy/mitmproxy/).
+
+## Updates Logs
+
+### 2020-10-21 (Contributed by Shilong Li)
+
+1. Rearrange the codes
+2. Fix the bugs that we should remove all the ip files in the directory every time we use the scripts. (Solution: to introduce `clean_config.py` and `config.json` to record the configuration)
+3. This time, we can transfer almost all the content of response of any type to right format file, including html, JavaScript, CSS, etc.
