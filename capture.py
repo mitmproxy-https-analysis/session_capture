@@ -1,14 +1,17 @@
 from base64 import encodestring
+from io import BytesIO
 from threading import Lock, Thread
 from queue import Queue
 import base64
 import json
 import os
+import gzip
+import constant
+from mitmproxy import ctx
+import constant
 """
     # TODO: REMEMBER TO SHUT DOWN YOUR FIREWALLS!!!!!!!!!
     """
-from mitmproxy import ctx
-import constant
 
 
 class JSONDumper:
@@ -21,6 +24,8 @@ class JSONDumper:
         self.lock = None
         self.auth = None
         self.queue = Queue()
+        self.configfile = "config.json"
+        self.ip_pool = json.load(open(self.configfile))
 
     def done(self):
         self.queue.join()
@@ -177,96 +182,109 @@ class JSONDumper:
         file_suffix = ''
 
         # classification according to each frame's response headers' content-type
-        if response_frame['headers'].__contains__('Content-Type') or response_frame['headers'].__contains__('content-type'):
-            if response_frame['headers'].__contains__('Content-Type'):
-                name = 'Content-Type'
-            else:
-                name = 'content-type'
-            type_name = response_frame['headers'][name].split(';')[
-                0].replace(' ', '')
+        try:
+            type_name = response_frame['headers']['Content-Type'].split(";")[
+                0].replace(" ", "")
             first_subfile = type_name.split('/')[0].replace(' ', '')
             second_subfile = type_name.split('/')[1].replace(' ', '')
-            if constant.SUFFIX.__contains__(type_name):
+        except KeyError:
+            try:
+                type_name = response_frame['headers']['content-type'].split(";")[
+                    0].replace(" ", "")
+                first_subfile = type_name.split('/')[0].replace(' ', '')
+                second_subfile = type_name.split('/')[1].replace(' ', '')
+            except KeyError:
+                type_name = None
+
+        # if response_frame['headers'].__contains__('Content-Type') or response_frame['headers'].__contains__('content-type'):
+        #     if response_frame['headers'].__contains__('Content-Type'):
+        #         name = 'Content-Type'
+        #     else:
+        #         name = 'content-type'
+        #     type_name = response_frame['headers'][name].split(';')[
+        #         0].replace(' ', '')
+        #     first_subfile = type_name.split('/')[0].replace(' ', '')
+        #     second_subfile = type_name.split('/')[1].replace(' ', '')
+        if type_name:
+            try:
                 file_suffix = constant.SUFFIX[type_name][0]
+            except KeyError:
+                file_suffix = ".bin"
+        else:
+            return
+            # if constant.SUFFIX.__contains__(type_name):
+            #     file_suffix = constant.SUFFIX[type_name][0]
 
             # classification = response_frame['headers'][name].split('/')
             # first_subfile = classification[0].replace(' ', '')
             # second_subfile = classification[1].split(';')[0]
         self.lock.acquire()
-        if not os.path.exists(ip_address):
-            # if ip appears first, set id to 1
-            constant.ID_POOL[ip_address] = 1
-            os.makedirs(ip_address)
-        os.chdir(ip_address)
 
-        # to step into file
-        if first_subfile == 'others':
-            if not os.path.exists(first_subfile):
-                os.makedirs(first_subfile)
-            os.chdir(first_subfile)
-        else:
-            if not os.path.exists(first_subfile):
-                os.makedirs(first_subfile)
-            os.chdir(first_subfile)
-            if not os.path.exists(second_subfile):
-                os.makedirs(second_subfile)
-            os.chdir(second_subfile)
+        self.step_into_subfile(ip_address, first_subfile, second_subfile)
         # assign the id for each ip address
-        session_id = constant.ID_POOL[ip_address]
+        try:
+            session_id = self.ip_pool[ip_address]
+        except KeyError:
+            session_id = 1
+            self.ip_pool[ip_address] = 1
         request_filename = str(session_id)+'_request.json'
-
+        response_filename = str(session_id)+'_response.json'
         """
             to write out the request information
         """
-        self.outfile = open(request_filename, 'a')
-        self.outfile.write("\n" + json.dumps(request_frame) + "\n")
+        self.write_into_file(request_filename, request_filename)
 
         """
             To write out the response information
         """
-        response_filename = str(session_id)+'_response.json'
-        self.outfile = open(response_filename, 'a')
-        self.outfile.write("\n" + json.dumps(response_frame) + "\n")
+        self.write_into_file(response_filename, response_frame)
 
         """
             To write out the request content if any
         """
         # if rtc_flag:
         #     rtc_filename = str(session_id)+'_request_content.json'
-        #     self.outfile = open(rtc_filename, 'a')
-        #     self.outfile.write("\n"+json.dumps(request_content_obj)+'\n')
+        #     self.write_into_file(rtc_filename,request_content_obj)
 
         """
             To write out the response content into right format file
         """
         if rec_flag:
-            # TODO: transfer string to bytes
-            rec_filename = str(session_id)+'_response_content'
-            self.string2bytes_format(
-                file_suffix, rec_filename, response_content)
             """
                 here for debugging
             """
             # rec_file = str(session_id)+'_response_content.json'
-            # self.outfile = open(rec_file, 'a')
-            # self.outfile.write('\n'+json.dumps(response_content_obj)+'\n')
+            # self.write_into_file(rec_file,response_content_obj)
+            rec_filename = str(session_id)+'_response_content'
+            # TODO: transfer string to bytes
+            if response_content[0:8] == constant.GZIP_HEADER:
+                try:
+                    self.str2byte_gzip(
+                        file_suffix, rec_filename, response_content)
+                except Exception:
+                    pass
+            else:
+                self.str2byte_nogzip(
+                    file_suffix, rec_filename, response_content)
+
         # back to the root directory of the project
         os.chdir(constant.HOME)
-        constant.ID_POOL[ip_address] += 1
+        # To record the
+        self.ip_pool[ip_address] += 1
+        # self.write_into_file(self.configfile, self.ip_pool, 'w+')
+        open(self.configfile, 'w+').write(json.dumps(self.ip_pool))
         self.lock.release()
 
     @classmethod
-    def string2bytes_format(cls, suffix, filename, string):
+    def str2byte_nogzip(cls, suffix, filename, string):
         """
             :param suffix: suffix of the file
             :param filename: str
             :param string: str that contains bytes information
             transfer string to bytes, and store it in the right file
         """
-        if not suffix == '':
-            filename = filename+suffix
         i = 0
-        with open(filename, 'wb+') as fstb:
+        with open(filename+suffix, 'wb+') as fstb:
             while i < len(string):
                 if string[i] == "\\":
                     if string[i+1] == 'x':
@@ -283,6 +301,32 @@ class JSONDumper:
                 else:
                     fstb.write(bytes(string[i], 'utf-8'))
                     i += 1
+
+    @classmethod
+    def str2byte_gzip(cls, suffix, filename, string):
+        bytes_string = b''
+        i = 0
+        with open(filename+suffix, 'w+', encoding='utf-8') as f:
+            while i < len(string):
+                if string[i] == "\\":
+                    if string[i+1] == "x":
+                        number = int(string[i+2:i+4], 16)
+                        bytes_string += number.to_bytes(1, 'little')
+                        i += 4
+                    elif constant.DICTION.__contains__(string[i+1]):
+                        number = constant.DICTION[string[i+1]]
+                        bytes_string += number.to_bytes(1, 'little')
+                        i += 2
+                    else:
+                        bytes_string += bytes(string[i], 'utf-8')
+                        i += 2
+                else:
+                    bytes_string += bytes(string[i], 'utf-8')
+                    i += 1
+            tmp = BytesIO(bytes_string)
+            fm = gzip.GzipFile(fileobj=tmp)
+            content = fm.read().decode('utf-8')
+            f.write(content)
 
     @staticmethod
     def load(loader):
@@ -317,6 +361,31 @@ class JSONDumper:
             Dump request/response pairs.
         """
         self.queue.put(flow.get_state())
+
+    def step_into_subfile(self, ip_address, first_subfile, second_subfile):
+        try:
+            os.chdir(ip_address)
+        except FileNotFoundError:
+            os.makedirs(ip_address)
+            os.chdir(ip_address)
+
+        # to step into first subfile
+        try:
+            os.chdir(first_subfile)
+        except FileNotFoundError:
+            os.makedirs(first_subfile)
+            os.chdir(first_subfile)
+        # to step into second subfile
+        if first_subfile != 'others':
+            try:
+                os.chdir(second_subfile)
+            except FileNotFoundError:
+                os.makedirs(second_subfile)
+                os.chdir(second_subfile)
+
+    def write_into_file(self, filename: str, store_object: object, openmode='a'):
+        self.outfile = open(filename, openmode)
+        self.outfile.write("\n"+json.dumps(store_object)+"\n")
 
 
 addons = [JSONDumper()]

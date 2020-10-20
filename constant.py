@@ -1,8 +1,6 @@
 # for use of transfer strings to bytes, in function string2bytes_format()
 DICTION = {'a': 7, 'b': 8, 'f': 12, 'n': 10, 'r': 13,
            't': 9, 'v': 11, "'": 39, '"': 34, '?': 63, '0': 0}
-# for use of different ip id
-ID_POOL = {}
 
 # set the root directory of the project
 HOME = "C:\\projects\\mitmproxy_group_I"
@@ -11,10 +9,12 @@ SUFFIX = {
     "application/octet-stream": [
         ""
     ],
+    "application/json": [
+        ".json"
+    ],
     "image/tiff": [
-        ".tif",
-        ".tif",
-        ".tiff"
+        ".tiff",
+        ".tif"
     ],
     "application/x-001": [
         ".001"
@@ -43,9 +43,9 @@ SUFFIX = {
         ".ps"
     ],
     "audio/aiff": [
-        ".aif",
+        ".aiff",
         ".aifc",
-        ".aiff"
+        ".aif"
     ],
     "application/x-anv": [
         ".anv"
@@ -71,7 +71,7 @@ SUFFIX = {
         ".awf"
     ],
     "text/xml": [
-        ".biz",
+        ".xml",
         ".cml",
         ".dcd",
         ".dtd",
@@ -89,7 +89,7 @@ SUFFIX = {
         ".vxml",
         ".wsdl",
         ".xdr",
-        ".xml",
+        ".biz",
         ".xq",
         ".xql",
         ".xquery",
@@ -141,8 +141,8 @@ SUFFIX = {
         ".cit"
     ],
     "java/*": [
-        ".class",
-        ".java"
+        ".java",
+        ".class"
     ],
     "application/x-cmp": [
         ".cmp"
@@ -227,8 +227,8 @@ SUFFIX = {
         ".epi"
     ],
     "application/x-ps": [
-        ".eps",
-        ".ps"
+        ".ps",
+        ".eps"
     ],
     "application/x-ebx": [
         ".etd"
@@ -249,7 +249,7 @@ SUFFIX = {
         ".gbr"
     ],
     "application/x-": [
-        "."
+        ""
     ],
     "image/gif": [
         ".gif"
@@ -285,8 +285,8 @@ SUFFIX = {
         ".htc"
     ],
     "text/html": [
-        ".htm",
         ".html",
+        ".htm",
         ".htx",
         ".jsp",
         ".plg",
@@ -325,9 +325,9 @@ SUFFIX = {
         ".IVF"
     ],
     "image/jpeg": [
+        ".jpeg",
         ".jfif",
         ".jpe",
-        ".jpeg",
         ".jpg"
     ],
     "application/x-jpe": [
@@ -335,6 +335,9 @@ SUFFIX = {
     ],
     "application/x-jpg": [
         ".jpg"
+    ],
+    "application/javascript": [
+        ".js"
     ],
     "application/x-javascript": [
         ".js",
@@ -372,8 +375,8 @@ SUFFIX = {
         ".m3u"
     ],
     "video/mpeg4": [
-        ".m4e",
-        ".mp4"
+        ".mp4",
+        ".m4e"
     ],
     "application/x-mac": [
         ".mac"
@@ -435,8 +438,8 @@ SUFFIX = {
         ".mpx"
     ],
     "video/mpg": [
-        ".mpeg",
         ".mpg",
+        ".mpeg",
         ".mpv"
     ],
     "audio/rn-mpeg": [
@@ -491,7 +494,6 @@ SUFFIX = {
         ".pcx"
     ],
     "application/pdf": [
-        ".pdf",
         ".pdf"
     ],
     "application/vnd.adobe.pdx": [
@@ -654,16 +656,16 @@ SUFFIX = {
         ".slk"
     ],
     "application/smil": [
-        ".smi",
-        ".smil"
+        ".smil",
+        ".smi"
     ],
     "application/x-smk": [
         ".smk"
     ],
     "text/plain": [
-        ".sol",
+        ".txt",
         ".sor",
-        ".txt"
+        ".sol"
     ],
     "application/futuresplash": [
         ".spl"
@@ -857,6 +859,7 @@ SUFFIX = {
         ".xap"
     ]
 }
+GZIP_HEADER = "\\x1f\\x8b"
 """
     Retrieved from https://www.runoob.com/http/http-content-type.html
 """
