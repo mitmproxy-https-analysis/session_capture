@@ -230,12 +230,12 @@ class JSONDumper:
         request_filename = str(session_id)+'_request.json'
         response_filename = str(session_id)+'_response.json'
         """
-            to write out the request information
+            to write out the request header information
         """
-        self.write_into_file(request_filename, request_filename)
+        self.write_into_file(request_filename, request_frame)
 
         """
-            To write out the response information
+            To write out the response header information
         """
         self.write_into_file(response_filename, response_frame)
 

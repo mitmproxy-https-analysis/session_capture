@@ -482,7 +482,6 @@
         ".pcx"
     ],
     "application/pdf": [
-        ".pdf",
         ".pdf"
     ],
     "application/vnd.adobe.pdx": [
