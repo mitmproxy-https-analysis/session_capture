@@ -26,6 +26,7 @@ class JSONDumper:
         self.queue = Queue()
         self.configfile = "config.json"
         self.ip_pool = json.load(open(self.configfile))
+        constant.HOME = os.getcwd()
 
     def done(self):
         self.queue.join()

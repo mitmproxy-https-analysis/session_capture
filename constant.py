@@ -3,7 +3,7 @@ DICTION = {'a': 7, 'b': 8, 'f': 12, 'n': 10, 'r': 13,
            't': 9, 'v': 11, "'": 39, '"': 34, '?': 63, '0': 0}
 
 # set the root directory of the project
-HOME = "C:\\projects\\mitmproxy_group_I"
+HOME = ""
 
 SUFFIX = {
     "application/octet-stream": [
